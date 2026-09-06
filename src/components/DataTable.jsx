@@ -1,7 +1,16 @@
 import React, { useState, useMemo } from 'react';
-import { Table, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Table, Search, ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react';
 
-export default function DataTable({ data, columns, title = "Previsualización de Datos", isCleaned = false }) {
+export default function DataTable({
+  data,
+  columns,
+  title = "Previsualización de Datos",
+  isCleaned = false,
+  onDeleteColumn,
+  deletedColumns = [],
+  onRestoreColumn,
+  onRestoreAllColumns,
+}) {
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(10);
@@ -46,13 +55,14 @@ export default function DataTable({ data, columns, title = "Previsualización de
 
   return (
     <div className="glass-card" style={{ padding: '1.25rem 1.5rem', marginBottom: '2rem' }}>
+      {/* Header bar */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.85rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <Table size={18} style={{ color: 'var(--text-secondary)' }} />
           <div>
             <h3 style={{ fontSize: '1.15rem', fontWeight: 700 }}>{title}</h3>
             <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-              {filteredData.length} registros en vista previa
+              {filteredData.length} registros • {colKeys.length} columnas activas
             </span>
           </div>
         </div>
@@ -91,6 +101,45 @@ export default function DataTable({ data, columns, title = "Previsualización de
         </div>
       </div>
 
+      {/* Deleted columns restore bar if any */}
+      {isCleaned && deletedColumns && deletedColumns.length > 0 && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+          marginBottom: '1rem',
+          padding: '0.6rem 0.85rem',
+          background: 'var(--bg-surface)',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: 'var(--radius-sm)',
+          flexWrap: 'wrap',
+          fontSize: '0.8rem'
+        }}>
+          <span style={{ color: 'var(--text-muted)' }}>Columnas eliminadas:</span>
+          {deletedColumns.map((col) => (
+            <span key={col} className="col-restore-chip">
+              <span>{col}</span>
+              <button
+                onClick={() => onRestoreColumn(col)}
+                title={`Restaurar columna ${col}`}
+              >
+                + Restaurar
+              </button>
+            </span>
+          ))}
+
+          {deletedColumns.length > 1 && (
+            <button
+              onClick={onRestoreAllColumns}
+              className="btn btn-secondary"
+              style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem', marginLeft: 'auto' }}
+            >
+              <RotateCcw size={11} /> Restaurar todas
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Table Wrapper */}
       <div className="table-wrapper">
         <table className="data-table">
@@ -98,7 +147,24 @@ export default function DataTable({ data, columns, title = "Previsualización de
             <tr>
               <th style={{ width: '40px', textAlign: 'center' }}>#</th>
               {colKeys.map((colName) => (
-                <th key={colName}>{colName}</th>
+                <th key={colName}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.35rem' }}>
+                    <span>{colName}</span>
+                    {isCleaned && onDeleteColumn && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteColumn(colName);
+                        }}
+                        className="btn-delete-col"
+                        title={`Eliminar columna "${colName}"`}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                </th>
               ))}
             </tr>
           </thead>

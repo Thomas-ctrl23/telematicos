@@ -5,7 +5,7 @@ import DataTable from './components/DataTable';
 import ExportBar from './components/ExportBar';
 import { Sparkles, Eye, RotateCcw } from 'lucide-react';
 
-const CLEANING_CONFIG = {
+const BASE_CLEANING_CONFIG = {
   missing: {
     enabled: true,
     mode: 'drop_rows_any',
@@ -42,6 +42,31 @@ export default function App() {
   const [inspection, setInspection] = useState(null);
   const [cleanResults, setCleanResults] = useState(null);
   const [activeTableView, setActiveTableView] = useState('cleaned');
+  const [deletedColumns, setDeletedColumns] = useState([]);
+
+  // Ejecuta la limpieza enviando las columnas a excluir si las hubiera
+  const executeClean = async (selectedFile, colsToDrop = []) => {
+    const config = {
+      ...BASE_CLEANING_CONFIG,
+      drop_columns: colsToDrop,
+    };
+
+    const formDataClean = new FormData();
+    formDataClean.append('file', selectedFile);
+    formDataClean.append('config', JSON.stringify(config));
+
+    const responseClean = await fetch('/api/clean', {
+      method: 'POST',
+      body: formDataClean,
+    });
+
+    if (!responseClean.ok) {
+      const errJson = await responseClean.json().catch(() => ({}));
+      throw new Error(errJson.detail || 'Error durante el proceso de limpieza.');
+    }
+
+    return await responseClean.json();
+  };
 
   const handleFileSelected = async (selectedFile) => {
     try {
@@ -50,6 +75,7 @@ export default function App() {
       setError(null);
       setCleanResults(null);
       setInspection(null);
+      setDeletedColumns([]);
 
       // 1. Analizar dataset
       const formDataAnalyze = new FormData();
@@ -69,21 +95,7 @@ export default function App() {
       setInspection(inspectionData);
 
       // 2. Ejecutar limpieza automática con Pandas
-      const formDataClean = new FormData();
-      formDataClean.append('file', selectedFile);
-      formDataClean.append('config', JSON.stringify(CLEANING_CONFIG));
-
-      const responseClean = await fetch('/api/clean', {
-        method: 'POST',
-        body: formDataClean,
-      });
-
-      if (!responseClean.ok) {
-        const errJson = await responseClean.json().catch(() => ({}));
-        throw new Error(errJson.detail || 'Error durante el proceso de limpieza.');
-      }
-
-      const cleanData = await responseClean.json();
+      const cleanData = await executeClean(selectedFile, []);
       setCleanResults(cleanData);
       setActiveTableView('cleaned');
     } catch (err) {
@@ -97,11 +109,61 @@ export default function App() {
     }
   };
 
+  // Función para borrar una columna
+  const handleDeleteColumn = async (colName) => {
+    if (!file) return;
+    const nextDropped = [...deletedColumns, colName];
+    setDeletedColumns(nextDropped);
+
+    try {
+      const updatedCleanData = await executeClean(file, nextDropped);
+      setCleanResults(updatedCleanData);
+    } catch (err) {
+      console.error(err);
+      alert('Error eliminando la columna: ' + err.message);
+    }
+  };
+
+  // Función para restaurar una columna individual
+  const handleRestoreColumn = async (colName) => {
+    if (!file) return;
+    const nextDropped = deletedColumns.filter(c => c !== colName);
+    setDeletedColumns(nextDropped);
+
+    try {
+      const updatedCleanData = await executeClean(file, nextDropped);
+      setCleanResults(updatedCleanData);
+    } catch (err) {
+      console.error(err);
+      alert('Error restaurando la columna: ' + err.message);
+    }
+  };
+
+  // Función para restaurar todas las columnas
+  const handleRestoreAllColumns = async () => {
+    if (!file) return;
+    setDeletedColumns([]);
+
+    try {
+      const updatedCleanData = await executeClean(file, []);
+      setCleanResults(updatedCleanData);
+    } catch (err) {
+      console.error(err);
+      alert('Error restaurando las columnas: ' + err.message);
+    }
+  };
+
   const handleReset = () => {
     setFile(null);
     setInspection(null);
     setCleanResults(null);
     setError(null);
+    setDeletedColumns([]);
+  };
+
+  const exportConfig = {
+    ...BASE_CLEANING_CONFIG,
+    drop_columns: deletedColumns,
   };
 
   return (
@@ -118,6 +180,11 @@ export default function App() {
               <div className="step-number">✓</div>
               <span>Limpieza con Pandas completada</span>
             </div>
+            {deletedColumns.length > 0 && (
+              <div className="step-item">
+                <span>{deletedColumns.length} columna(s) eliminada(s)</span>
+              </div>
+            )}
           </div>
 
           <button
@@ -149,10 +216,10 @@ export default function App() {
             cleanResults={cleanResults}
           />
 
-          {/* Export bar (Download CSV / Excel) */}
+          {/* Export bar (Download CSV / Excel with columns removed) */}
           <ExportBar
             file={file}
-            config={CLEANING_CONFIG}
+            config={exportConfig}
             cleanResults={cleanResults}
           />
 
@@ -165,7 +232,7 @@ export default function App() {
                 onClick={() => setActiveTableView('cleaned')}
               >
                 <Sparkles size={14} />
-                <span>Dataset Limpio ({cleanResults.metrics.final_rows} filas)</span>
+                <span>Dataset Limpio ({cleanResults.metrics.final_rows} filas, {cleanResults.columns.length} cols)</span>
               </button>
 
               <button
@@ -174,15 +241,9 @@ export default function App() {
                 onClick={() => setActiveTableView('original')}
               >
                 <Eye size={14} />
-                <span>Dataset Original ({inspection.total_rows} filas)</span>
+                <span>Dataset Original ({inspection.total_rows} filas, {inspection.total_cols} cols)</span>
               </button>
             </div>
-
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              {activeTableView === 'cleaned'
-                ? 'Datos tras eliminar nulos, duplicados, outliers y corregir tipografías'
-                : 'Estructura original sin procesar'}
-            </span>
           </div>
 
           {/* Data Table */}
@@ -192,6 +253,10 @@ export default function App() {
               data={cleanResults.preview}
               columns={cleanResults.columns}
               isCleaned={true}
+              onDeleteColumn={handleDeleteColumn}
+              deletedColumns={deletedColumns}
+              onRestoreColumn={handleRestoreColumn}
+              onRestoreAllColumns={handleRestoreAllColumns}
             />
           ) : (
             <DataTable

@@ -457,6 +457,59 @@ input:checked + .slider:before {
   color: var(--text-primary);
 }
 
+.btn-delete-col {
+  background: transparent;
+  border: 1px solid var(--border-medium);
+  color: var(--text-muted);
+  border-radius: 3px;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  line-height: 1;
+  padding: 0;
+  margin-left: 0.4rem;
+}
+
+.btn-delete-col:hover {
+  background: #ffffff;
+  color: #000000;
+  border-color: #ffffff;
+}
+
+.col-restore-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: var(--bg-surface);
+  border: 1px dashed var(--border-medium);
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.col-restore-chip button {
+  background: none;
+  border: none;
+  color: #ffffff;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.75rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.col-restore-chip button:hover {
+  text-decoration: underline;
+}
+
 .cell-null {
   color: var(--text-muted);
   font-style: italic;

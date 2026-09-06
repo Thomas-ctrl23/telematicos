@@ -168,6 +168,23 @@ class DataCleaner:
         step_index = 1
 
         # ==========================================
+        # STEP 0: ELIMINACIÓN MANUAL DE COLUMNAS
+        # ==========================================
+        drop_columns = config.get("drop_columns", [])
+        if drop_columns and isinstance(drop_columns, list):
+            existing_to_drop = [c for c in drop_columns if c in cleaned_df.columns]
+            if existing_to_drop:
+                cleaned_df = cleaned_df.drop(columns=existing_to_drop)
+                audit_log.append({
+                    "step": step_index,
+                    "category": "columnas",
+                    "action": "Eliminación de columnas",
+                    "detail": f"Se eliminaron las columnas: {', '.join(existing_to_drop)}",
+                    "count": len(existing_to_drop),
+                })
+                step_index += 1
+
+        # ==========================================
         # STEP 1: ERRORES TIPOGRÁFICOS / TOPOGRÁFICOS
         # ==========================================
         typos_config = config.get("typos", {})
