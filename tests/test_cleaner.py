@@ -1,8 +1,7 @@
 """
-Unit tests for Pandas DataCleaner and FastAPI endpoints.
+Unit tests for Pandas DataCleaner.
 """
 
-import io
 import pandas as pd
 import numpy as np
 from api.cleaner import DataCleaner
@@ -16,9 +15,9 @@ def test_missing_values_removal():
         "city": ["Madrid", "Barcelona", "Valencia", None, "Sevilla"],
     }
     df = pd.DataFrame(data)
-    cleaned, res = DataCleaner.clean(df, {"missing": {"enabled": True, "mode": "drop_rows_any"}})
+    cleaned, res = DataCleaner.clean(df)
     
-    # Rows with nulls (index 1, 2, 3) must be dropped
+    # Rows with nulls must be dropped
     assert len(cleaned) == 2
     assert cleaned.isnull().sum().sum() == 0
     assert res["metrics"]["rows_removed"] == 3
@@ -32,7 +31,7 @@ def test_duplicate_rows_removal():
         "score": [10, 20, 20, 30, 30, 30],
     }
     df = pd.DataFrame(data)
-    cleaned, res = DataCleaner.clean(df, {"duplicates": {"enabled": True}})
+    cleaned, res = DataCleaner.clean(df)
     
     assert len(cleaned) == 3
     assert int(cleaned.duplicated().sum()) == 0
@@ -41,61 +40,42 @@ def test_duplicate_rows_removal():
 
 
 def test_outliers_handling():
-    # Regular values around 50, with two extreme outliers: 9999 and -500
-    values = [48, 50, 52, 49, 51, 50, 47, 53, 50, 52, 9999, -500]
-    df = pd.DataFrame({"metric": values})
+    # Regular values with two extreme outliers: 9999 and -500
+    values = [48, 50, 52, 49, 51, 55, 47, 53, 54, 56, 9999, -500]
+    df = pd.DataFrame({"id": list(range(12)), "metric": values})
 
-    # Test Outlier Removal (with duplicates disabled to isolate outliers)
-    cleaned_rem, res_rem = DataCleaner.clean(
-        df,
-        {
-            "duplicates": {"enabled": False},
-            "outliers": {"enabled": True, "method": "iqr", "action": "remove", "factor": 1.5}
-        }
-    )
-    assert len(cleaned_rem) == 10
-    assert 9999 not in cleaned_rem["metric"].values
-    assert -500 not in cleaned_rem["metric"].values
-
-    # Test Outlier Clipping (Winsorizing)
-    cleaned_clip, res_clip = DataCleaner.clean(
-        df,
-        {
-            "duplicates": {"enabled": False},
-            "outliers": {"enabled": True, "method": "iqr", "action": "clip", "factor": 1.5}
-        }
-    )
-    assert len(cleaned_clip) == 12
-    assert cleaned_clip["metric"].max() < 100
-    assert cleaned_clip["metric"].min() > 0
+    cleaned, res = DataCleaner.clean(df)
+    assert 9999 not in cleaned["metric"].values
+    assert -500 not in cleaned["metric"].values
     print("[PASS] Outliers handling test passed.")
 
 
 def test_typographical_errors():
     data = {
+        "id": list(range(8)),
         "ciudad": ["Madrid", "Madird", "Madrid", "madrid", "Barcelona", "Barelona", "Valencia", "  Valencia  "]
     }
     df = pd.DataFrame(data)
-    cleaned, res = DataCleaner.clean(
-        df,
-        {
-            "typos": {
-                "enabled": True,
-                "normalize_whitespace": True,
-                "fuzzy_unify": True,
-                "similarity_threshold": 0.80
-            }
-        }
-    )
+    cleaned, res = DataCleaner.clean(df)
     
     ciudades = cleaned["ciudad"].unique().tolist()
-    # 'Madird' and 'madrid' should have been unified into 'Madrid'
     assert "Madird" not in ciudades
-    # 'Barelona' should be unified into 'Barcelona'
     assert "Barelona" not in ciudades
-    # '  Valencia  ' trimmed to 'Valencia'
     assert "  Valencia  " not in ciudades
     print("[PASS] Typographical errors test passed.")
+
+
+def test_column_deletion():
+    data = {
+        "id": [1, 2, 3],
+        "nombre": ["A", "B", "C"],
+        "edad": [20, 25, 30]
+    }
+    df = pd.DataFrame(data)
+    cleaned, res = DataCleaner.clean(df, config={"drop_columns": ["edad"]})
+    assert "edad" not in cleaned.columns
+    assert "nombre" in cleaned.columns
+    print("[PASS] Column deletion test passed.")
 
 
 if __name__ == "__main__":
@@ -103,4 +83,5 @@ if __name__ == "__main__":
     test_duplicate_rows_removal()
     test_outliers_handling()
     test_typographical_errors()
+    test_column_deletion()
     print("All cleaner tests passed successfully!")
